@@ -18,10 +18,10 @@ Data is processed **only** to send e-mails on your behalf via Microsoft Graph an
 We do not share your data with third parties except Microsoft Graph, which is required to deliver the e-mail.
 
 ## 5. Your Rights
-To request deletion of log data or revoke ArkazGPT’s mailbox access, e-mail <privacy@arkazsaudi.com>.
+To request deletion of log data or revoke ArkazGPT’s mailbox access, e-mail <wasim@arkazsaudi.com>.
 
 ## 6. Contact
 Arkaz Al Saudi General Contracting Company  
 Khalid Ibn Al Waleed St, Ash Sharafiyah, Jeddah 23216  
 Kingdom of Saudi Arabia  
-<privacy@arkazsaudi.com>
+<info@arkazsaudi.com>
