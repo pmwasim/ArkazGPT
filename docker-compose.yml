@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL Database ──────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-arkazgpt}
+      POSTGRES_USER:     ${POSTGRES_USER:-arkazgpt}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arkazgpt}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  # ── Next.js App ──────────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL:    postgresql://${POSTGRES_USER:-arkazgpt}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-arkazgpt}?schema=public
+      NEXTAUTH_URL:    ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NODE_ENV:        production
+    networks:
+      - internal
+      - web
+    expose:
+      - "3000"
+
+  # ── Nginx Reverse Proxy ──────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro      # place your SSL certs here
+      - nginx_cache:/var/cache/nginx
+    networks:
+      - web
+
+volumes:
+  pgdata:
+  nginx_cache:
+
+networks:
+  internal:
+    driver: bridge
+  web:
+    driver: bridge
