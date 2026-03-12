@@ -1,0 +1,531 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── AUTH ────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          Role      @default(TECHNICIAN)
+  phone         String?
+  avatar        String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  assignedTasks     Task[]            @relation("AssignedTo")
+  createdTasks      Task[]            @relation("CreatedBy")
+  serviceReceipts   ServiceReceipt[]
+  deliveryNotes     DeliveryNote[]
+  expenseEntries    Expense[]
+  toolAssignments   ToolAssignment[]
+  fieldVisits       FieldVisit[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  ACCOUNTANT
+  TECHNICIAN
+  DRIVER
+}
+
+// ─── CUSTOMER ────────────────────────────────────────────────────────────────
+
+model Customer {
+  id              String    @id @default(cuid())
+  name            String
+  phone           String?
+  email           String?
+  address         String?
+  vatNumber       String?
+  crNumber        String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  serviceReceipts ServiceReceipt[]
+  deliveryNotes   DeliveryNote[]
+  invoices        Invoice[]
+  projects        Project[]
+
+  @@map("customers")
+}
+
+// ─── PROJECT / SITE ──────────────────────────────────────────────────────────
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  code        String?   @unique
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  location    String?
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tasks           Task[]
+  expenses        Expense[]
+  serviceReceipts ServiceReceipt[]
+  deliveryNotes   DeliveryNote[]
+  fieldVisits     FieldVisit[]
+
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+// ─── SERVICE RECEIPT ─────────────────────────────────────────────────────────
+
+model ServiceReceipt {
+  id              String    @id @default(cuid())
+  receiptNumber   String    @unique
+  customerId      String
+  customer        Customer  @relation(fields: [customerId], references: [id])
+  projectId       String?
+  project         Project?  @relation(fields: [projectId], references: [id])
+  technicianId    String
+  technician      User      @relation(fields: [technicianId], references: [id])
+
+  complaint           String
+  errorDescription    String?
+  workDone            String?
+  recommendations     String?
+
+  items               ServiceItem[]
+
+  customerSignature   String?
+  technicianSignature String?
+  signedAt            DateTime?
+  status              ServiceStatus @default(DRAFT)
+
+  visitDate       DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("service_receipts")
+}
+
+model ServiceItem {
+  id               String         @id @default(cuid())
+  serviceReceiptId String
+  serviceReceipt   ServiceReceipt @relation(fields: [serviceReceiptId], references: [id], onDelete: Cascade)
+  type             ItemType       @default(REPLACED)
+  description      String
+  partNumber       String?
+  quantity         Int            @default(1)
+  notes            String?
+
+  @@map("service_items")
+}
+
+enum ItemType {
+  REPLACED
+  INSTALLED
+  REPAIRED
+  INSPECTED
+}
+
+enum ServiceStatus {
+  DRAFT
+  COMPLETED
+  SIGNED
+  CANCELLED
+}
+
+// ─── DELIVERY NOTE ───────────────────────────────────────────────────────────
+
+model DeliveryNote {
+  id              String    @id @default(cuid())
+  noteNumber      String    @unique
+  customerId      String
+  customer        Customer  @relation(fields: [customerId], references: [id])
+  projectId       String?
+  project         Project?  @relation(fields: [projectId], references: [id])
+  driverId        String
+  driver          User      @relation(fields: [driverId], references: [id])
+
+  deliveryAddress   String?
+  notes             String?
+
+  items             DeliveryItem[]
+
+  customerSignature String?
+  signedAt          DateTime?
+  status            DeliveryStatus @default(PENDING)
+
+  deliveryDate    DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("delivery_notes")
+}
+
+model DeliveryItem {
+  id             String       @id @default(cuid())
+  deliveryNoteId String
+  deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  description    String
+  partNumber     String?
+  quantity       Int
+  unit           String?
+  notes          String?
+
+  @@map("delivery_items")
+}
+
+enum DeliveryStatus {
+  PENDING
+  IN_TRANSIT
+  DELIVERED
+  SIGNED
+  RETURNED
+}
+
+// ─── TASK MANAGEMENT ─────────────────────────────────────────────────────────
+
+model Task {
+  id           String     @id @default(cuid())
+  title        String
+  description  String?
+  projectId    String?
+  project      Project?   @relation(fields: [projectId], references: [id])
+  assignedToId String?
+  assignedTo   User?      @relation("AssignedTo", fields: [assignedToId], references: [id])
+  createdById  String
+  createdBy    User       @relation("CreatedBy", fields: [createdById], references: [id])
+
+  priority    Priority   @default(MEDIUM)
+  status      TaskStatus @default(PENDING)
+  dueDate     DateTime?
+  completedAt DateTime?
+  notes       String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("tasks")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+// ─── ACCOUNTS ────────────────────────────────────────────────────────────────
+
+model Account {
+  id          String      @id @default(cuid())
+  name        String
+  code        String      @unique
+  type        AccountType
+  parentId    String?
+  parent      Account?    @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children    Account[]   @relation("AccountHierarchy")
+  description String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+
+  journalLines JournalLine[]
+
+  @@map("accounts")
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+model JournalEntry {
+  id          String    @id @default(cuid())
+  entryNumber String    @unique
+  date        DateTime
+  description String
+  reference   String?
+  isPosted    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  lines       JournalLine[]
+
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String       @id @default(cuid())
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  accountId      String
+  account        Account      @relation(fields: [accountId], references: [id])
+  debit          Decimal      @default(0) @db.Decimal(18, 2)
+  credit         Decimal      @default(0) @db.Decimal(18, 2)
+  description    String?
+
+  @@map("journal_lines")
+}
+
+// ─── EXPENSE ─────────────────────────────────────────────────────────────────
+
+model Expense {
+  id            String          @id @default(cuid())
+  title         String
+  description   String?
+  amount        Decimal         @db.Decimal(18, 2)
+  vatAmount     Decimal         @default(0) @db.Decimal(18, 2)
+  totalAmount   Decimal         @db.Decimal(18, 2)
+  category      ExpenseCategory
+  projectId     String?
+  project       Project?        @relation(fields: [projectId], references: [id])
+  submittedById String
+  submittedBy   User            @relation(fields: [submittedById], references: [id])
+  receipt       String?
+  status        ExpenseStatus   @default(PENDING)
+  approvedById  String?
+  approvedAt    DateTime?
+  expenseDate   DateTime        @default(now())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@map("expenses")
+}
+
+enum ExpenseCategory {
+  FUEL
+  ACCOMMODATION
+  FOOD
+  TOOLS
+  MATERIALS
+  TRANSPORT
+  COMMUNICATION
+  MAINTENANCE
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REIMBURSED
+}
+
+// ─── STOCK ───────────────────────────────────────────────────────────────────
+
+model StockItem {
+  id          String    @id @default(cuid())
+  name        String
+  code        String    @unique
+  description String?
+  category    String?
+  unit        String    @default("PCS")
+  quantity    Decimal   @default(0) @db.Decimal(18, 3)
+  minQuantity Decimal   @default(0) @db.Decimal(18, 3)
+  costPrice   Decimal?  @db.Decimal(18, 2)
+  salePrice   Decimal?  @db.Decimal(18, 2)
+  location    String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  movements   StockMovement[]
+
+  @@map("stock_items")
+}
+
+model StockMovement {
+  id          String       @id @default(cuid())
+  stockItemId String
+  stockItem   StockItem    @relation(fields: [stockItemId], references: [id])
+  type        MovementType
+  quantity    Decimal      @db.Decimal(18, 3)
+  reference   String?
+  notes       String?
+  createdAt   DateTime     @default(now())
+
+  @@map("stock_movements")
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  TRANSFER
+}
+
+// ─── TOOLS ───────────────────────────────────────────────────────────────────
+
+model Tool {
+  id            String        @id @default(cuid())
+  name          String
+  code          String        @unique
+  description   String?
+  category      String?
+  serialNumber  String?
+  purchaseDate  DateTime?
+  purchasePrice Decimal?      @db.Decimal(18, 2)
+  condition     ToolCondition @default(GOOD)
+  status        ToolStatus    @default(AVAILABLE)
+  location      String?
+  notes         String?
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  assignments   ToolAssignment[]
+
+  @@map("tools")
+}
+
+model ToolAssignment {
+  id         String         @id @default(cuid())
+  toolId     String
+  tool       Tool           @relation(fields: [toolId], references: [id])
+  userId     String
+  user       User           @relation(fields: [userId], references: [id])
+  assignedAt DateTime       @default(now())
+  returnedAt DateTime?
+  purpose    String?
+  notes      String?
+  condition  ToolCondition?
+
+  @@map("tool_assignments")
+}
+
+enum ToolCondition {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+enum ToolStatus {
+  AVAILABLE
+  ASSIGNED
+  MAINTENANCE
+  RETIRED
+}
+
+// ─── FIELD SERVICE ───────────────────────────────────────────────────────────
+
+model FieldVisit {
+  id           String      @id @default(cuid())
+  visitNumber  String      @unique
+  projectId    String?
+  project      Project?    @relation(fields: [projectId], references: [id])
+  technicianId String
+  technician   User        @relation(fields: [technicianId], references: [id])
+  scheduledAt  DateTime
+  startedAt    DateTime?
+  completedAt  DateTime?
+  status       VisitStatus @default(SCHEDULED)
+  notes        String?
+  location     String?
+  gpsLat       Float?
+  gpsLng       Float?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@map("field_visits")
+}
+
+enum VisitStatus {
+  SCHEDULED
+  EN_ROUTE
+  ON_SITE
+  COMPLETED
+  CANCELLED
+}
+
+// ─── INVOICE ─────────────────────────────────────────────────────────────────
+
+model Invoice {
+  id             String        @id @default(cuid())
+  invoiceNumber  String        @unique
+  customerId     String
+  customer       Customer      @relation(fields: [customerId], references: [id])
+
+  issueDate      DateTime      @default(now())
+  dueDate        DateTime?
+
+  subtotal       Decimal       @db.Decimal(18, 2)
+  vatRate        Decimal       @default(15) @db.Decimal(5, 2)
+  vatAmount      Decimal       @db.Decimal(18, 2)
+  total          Decimal       @db.Decimal(18, 2)
+
+  notes          String?
+  terms          String?
+
+  zatcaQrCode        String?
+  zatcaQrGenerated   Boolean   @default(false)
+  externalInvoiceRef String?
+
+  status         InvoiceStatus @default(DRAFT)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  items          InvoiceItem[]
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal @db.Decimal(18, 3)
+  unitPrice   Decimal @db.Decimal(18, 2)
+  total       Decimal @db.Decimal(18, 2)
+  vatRate     Decimal @default(15) @db.Decimal(5, 2)
+
+  @@map("invoice_items")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────────────────────
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+
+  @@map("settings")
+}
