@@ -12,11 +12,19 @@ const createSchema = z.object({
   location: z.string().optional(),
 });
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { searchParams } = new URL(req.url);
+  const technicianId = searchParams.get("technicianId");
+  const status = searchParams.get("status");
+
   const visits = await prisma.fieldVisit.findMany({
+    where: {
+      ...(technicianId ? { technicianId } : {}),
+      ...(status ? { status: status as never } : {}),
+    },
     include: {
       technician: { select: { id: true, name: true } },
       project: { select: { id: true, name: true } },
