@@ -14,15 +14,16 @@ const patchSchema = z.object({
   completedAt: z.string().optional(),
 });
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { id } = await params;
   const body = await req.json();
   const data = patchSchema.parse(body);
 
   const visit = await prisma.fieldVisit.update({
-    where: { id: params.id },
+    where: { id },
     data: {
       ...data,
       startedAt: data.startedAt ? new Date(data.startedAt) : undefined,

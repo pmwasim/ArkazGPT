@@ -3,14 +3,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { id } = await params;
   const body = await req.json();
 
   const task = await prisma.task.update({
-    where: { id: params.id },
+    where: { id },
     data: {
       ...body,
       completedAt: body.status === "COMPLETED" ? new Date() : undefined,
@@ -24,10 +25,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return NextResponse.json(task);
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await prisma.task.delete({ where: { id: params.id } });
+  const { id } = await params;
+  await prisma.task.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
